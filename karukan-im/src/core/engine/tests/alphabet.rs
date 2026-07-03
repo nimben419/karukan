@@ -228,38 +228,94 @@ fn test_mixed_hiragana_alphabet_input() {
 }
 
 #[test]
-fn test_alphabet_mode_persists_across_commit() {
+fn test_shift_alphabet_reverts_to_hiragana_after_commit() {
     let mut engine = InputMethodEngine::new();
 
-    // Enter alphabet mode via Shift+H
+    // Enter alphabet mode via Shift+H from the default Hiragana mode
     engine.process_key(&press_shift('H'));
     assert!(engine.input_mode == InputMode::Alphabet);
 
-    // Type and commit
+    // Type and commit the alphabet word with Enter
     engine.process_key(&press('i'));
     engine.process_key(&press_key(Keysym::RETURN));
     assert!(matches!(engine.state(), InputState::Empty));
 
-    // alphabet_mode should persist
-    assert!(engine.input_mode == InputMode::Alphabet);
-
-    // New input should still be in alphabet mode
-    engine.process_key(&press('y'));
-    assert_eq!(engine.preedit().unwrap().text(), "y");
+    // Shift-alphabet is a temporary per-word mode: after commit we are back
+    // in Hiragana, so the next word converts to kana again (issue #37).
+    assert!(engine.input_mode == InputMode::Hiragana);
+    engine.process_key(&press('a'));
+    assert_eq!(engine.preedit().unwrap().text(), "あ");
 }
 
 #[test]
-fn test_alphabet_mode_cancel_clears_flags() {
+fn test_shift_alphabet_reverts_to_hiragana_after_cancel() {
     let mut engine = InputMethodEngine::new();
 
-    // Enter alphabet mode via Shift+A, type, cancel
+    // Enter alphabet mode via Shift+A, type, then cancel with Escape
     engine.process_key(&press_shift('A'));
     engine.process_key(&press('b'));
-
     engine.process_key(&press_key(Keysym::ESCAPE));
     assert!(matches!(engine.state(), InputState::Empty));
-    // Mode persists even after cancel
+
+    // Cancelling the temporary alphabet word restores Hiragana
+    assert!(engine.input_mode == InputMode::Hiragana);
+    engine.process_key(&press('a'));
+    assert_eq!(engine.preedit().unwrap().text(), "あ");
+}
+
+#[test]
+fn test_shift_alphabet_reverts_to_hiragana_after_erase_to_empty() {
+    let mut engine = InputMethodEngine::new();
+
+    // Enter alphabet mode via Shift+A, then erase back to an empty buffer
+    engine.process_key(&press_shift('A'));
     assert!(engine.input_mode == InputMode::Alphabet);
+    engine.process_key(&press_key(Keysym::BACKSPACE));
+    assert!(matches!(engine.state(), InputState::Empty));
+    assert!(engine.input_mode == InputMode::Hiragana);
+}
+
+/// Regression for issue #37: switching windows / losing focus commits through
+/// the RPC-driven `commit_result` path (macOS `deactivateServer` /
+/// `commitComposition`), NOT the Enter key. That path must also drop the
+/// temporary Alphabet mode, or the user comes back stuck in alphabet input.
+#[test]
+fn test_shift_alphabet_reverts_to_hiragana_after_focus_out_commit() {
+    let mut engine = InputMethodEngine::new();
+
+    // Enter alphabet mode via Shift+H and type, but do NOT press Enter
+    engine.process_key(&press_shift('H'));
+    engine.process_key(&press('i'));
+    assert!(engine.input_mode == InputMode::Alphabet);
+
+    // Window switch / focus loss commits via commit_result (the `commit` RPC)
+    engine.commit_result();
+    assert!(matches!(engine.state(), InputState::Empty));
+
+    // Back in Hiragana, so the next word converts to kana again
+    assert!(engine.input_mode == InputMode::Hiragana);
+    engine.process_key(&press('a'));
+    assert_eq!(engine.preedit().unwrap().text(), "あ");
+}
+
+/// Shift-entered Alphabet from Katakana mode returns to Katakana, not
+/// Hiragana — the saved mode is restored, not a hardcoded default.
+#[test]
+fn test_shift_alphabet_reverts_to_katakana_when_entered_from_katakana() {
+    let mut engine = InputMethodEngine::new();
+
+    // Switch to Katakana mode and start a word
+    engine.process_key(&press('a'));
+    engine.process_key(&press_ctrl(Keysym::KEY_K));
+    assert!(engine.input_mode == InputMode::Katakana);
+
+    // Shift+B switches to a temporary Alphabet run
+    engine.process_key(&press_shift('B'));
+    assert!(engine.input_mode == InputMode::Alphabet);
+
+    // Commit: the temporary alphabet word ends and Katakana is restored
+    engine.process_key(&press_key(Keysym::RETURN));
+    assert!(engine.input_mode == InputMode::Katakana);
 }
 
 #[test]

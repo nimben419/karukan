@@ -139,6 +139,14 @@ pub struct InputMethodEngine {
     /// they were instead of dropping them in Hiragana every time. `None`
     /// whenever the current mode is not Emoji.
     pre_emoji_mode: Option<InputMode>,
+    /// Mode active immediately before Shift+letter switched to
+    /// [`InputMode::Alphabet`]. Alphabet entered this way is a *temporary*
+    /// per-composition mode (like Emoji): committing/cancelling/erasing the
+    /// word restores this mode so the next word goes back to kana without an
+    /// explicit toggle key — the behaviour US-layout macOS users expect since
+    /// they have no JIS かな key (issue #37). `None` whenever the current mode
+    /// is not a Shift-entered Alphabet.
+    pre_alphabet_mode: Option<InputMode>,
     /// Composed input buffer (hiragana text, cursor position)
     input_buf: InputBuffer,
     /// Live conversion state
@@ -171,6 +179,7 @@ impl InputMethodEngine {
             metrics: ConversionMetrics::default(),
             input_mode: InputMode::Hiragana,
             pre_emoji_mode: None,
+            pre_alphabet_mode: None,
             input_buf: InputBuffer::new(),
             live: LiveConversion::default(),
             chunks: Vec::new(),
@@ -244,6 +253,7 @@ impl InputMethodEngine {
         self.converters.romaji.reset();
         self.input_mode = InputMode::Hiragana;
         self.pre_emoji_mode = None;
+        self.pre_alphabet_mode = None;
         self.input_buf.clear();
         self.live.text.clear();
         self.chunks.clear();
@@ -259,6 +269,32 @@ impl InputMethodEngine {
         if self.input_mode == InputMode::Emoji {
             self.input_mode = self.pre_emoji_mode.take().unwrap_or(InputMode::Hiragana);
         }
+    }
+
+    /// If currently in a Shift-entered [`InputMode::Alphabet`], restore the
+    /// mode the user was in before Shift+letter switched to it (Hiragana or
+    /// Katakana). Falls back to Hiragana if nothing was saved. No-op when not
+    /// in Alphabet mode, so it's safe to call unconditionally.
+    pub(super) fn exit_alphabet_mode(&mut self) {
+        if self.input_mode == InputMode::Alphabet {
+            self.input_mode = self.pre_alphabet_mode.take().unwrap_or(InputMode::Hiragana);
+        }
+    }
+
+    /// Restore any *temporary* per-composition input mode (Emoji from `:`,
+    /// Alphabet from Shift+letter) to the mode that preceded it.
+    ///
+    /// Both modes are meant to last only for the word being composed, so
+    /// EVERY path that ends a composition and returns to [`InputState::Empty`]
+    /// must call this — not just the Enter key. Crucially that includes the
+    /// RPC-driven [`Self::commit`], invoked on focus loss / window switch /
+    /// Tab-away by the macOS frontend's `deactivateServer`/`commitComposition`.
+    /// Routing every exit through this one helper is what prevents the
+    /// "Shift+letter then switch window leaves you stuck in Alphabet" class of
+    /// bug (issue #37) instead of playing whack-a-mole with each exit site.
+    fn end_temporary_mode(&mut self) {
+        self.exit_emoji_mode();
+        self.exit_alphabet_mode();
     }
 
     /// If the display is empty, reset to Empty state and return the result.
@@ -279,8 +315,9 @@ impl InputMethodEngine {
             // is over. Restore whatever mode the user was in before
             // entering Emoji so the next keypress doesn't get treated
             // as a literal emoji-query char (and so a Katakana-mode user
-            // lands back in Katakana, not Hiragana).
-            self.exit_emoji_mode();
+            // lands back in Katakana, not Hiragana). Shift-entered Alphabet
+            // is per-composition the same way, so restore it too.
+            self.end_temporary_mode();
             Some(
                 EngineResult::consumed()
                     .with_action(EngineAction::UpdatePreedit(Preedit::new()))
@@ -510,6 +547,10 @@ impl InputMethodEngine {
                 self.live.text.clear();
                 self.state = InputState::Empty;
                 self.surrounding_context = None;
+                // Focus loss / window switch / Tab-away reaches commit through
+                // here (not the Enter key path), so restore temporary modes so
+                // the next composition isn't stuck in Alphabet/Emoji (#37).
+                self.end_temporary_mode();
                 text
             }
             InputState::Conversion { candidates, .. } => {
@@ -522,6 +563,7 @@ impl InputMethodEngine {
                 self.input_buf.clear();
                 self.state = InputState::Empty;
                 self.surrounding_context = None;
+                self.end_temporary_mode();
                 text
             }
         }

@@ -186,6 +186,9 @@ impl InputMethodEngine {
                 ch.is_ascii_uppercase() || (shift_active && ch.is_ascii_alphabetic());
 
             if is_shift_alpha && self.input_mode != InputMode::Alphabet {
+                // Shift-alphabet is a temporary per-word mode: remember where
+                // to return so the next word goes back to kana (issue #37).
+                self.pre_alphabet_mode = Some(self.input_mode);
                 self.input_mode = InputMode::Alphabet;
             }
             let ch = if self.input_mode == InputMode::Alphabet && is_shift_alpha {
@@ -298,6 +301,10 @@ impl InputMethodEngine {
                         ch.is_ascii_uppercase() || (shift_active && ch.is_ascii_alphabetic());
 
                     if is_shift_alpha && self.input_mode != InputMode::Alphabet {
+                        // Temporary per-word mode: remember where to return
+                        // (Katakana stays Katakana) so commit/cancel restore
+                        // it and the next word is kana again (issue #37).
+                        self.pre_alphabet_mode = Some(self.input_mode);
                         // Bake katakana before switching so preedit doesn't revert
                         if self.input_mode == InputMode::Katakana {
                             self.bake_katakana();
@@ -437,7 +444,9 @@ impl InputMethodEngine {
         self.live.text.clear();
         self.chunks.clear();
         self.state = InputState::Empty;
-        self.exit_emoji_mode();
+        // Emoji and Shift-alphabet are temporary per-word modes: committing
+        // the word returns to the prior mode so the next word is kana (#37).
+        self.end_temporary_mode();
 
         // HideCandidates is required here: the auto-suggest/live-conversion
         // window may be open while Composing, and the macOS frontend's
@@ -482,10 +491,10 @@ impl InputMethodEngine {
         self.live.text.clear();
         self.chunks.clear();
         self.state = InputState::Empty;
-        // Emoji mode is per-session: leaving it returns the user to
-        // whatever mode they were in before typing `:` so their next
-        // word doesn't unexpectedly stay in ASCII-passthrough mode.
-        self.exit_emoji_mode();
+        // Emoji and Shift-alphabet modes are per-session: leaving one returns
+        // the user to whatever mode they were in before, so their next word
+        // doesn't unexpectedly stay in ASCII-passthrough / alphabet mode.
+        self.end_temporary_mode();
 
         let mut result = EngineResult::consumed()
             .with_action(EngineAction::UpdatePreedit(Preedit::new()))

@@ -6,17 +6,19 @@ use super::*;
 fn test_mode_toggle_key_switches_alphabet_to_hiragana() {
     let mut engine = InputMethodEngine::new();
 
-    // Enter alphabet mode via Shift+A
+    // Enter alphabet mode via Shift+A (toggle during composing: after commit
+    // Shift-alphabet auto-reverts to Hiragana, so the toggle key is exercised
+    // while the alphabet run is still active — its explicit-switch role).
     engine.process_key(&press_shift('A'));
     assert!(engine.input_mode == InputMode::Alphabet);
-    engine.process_key(&press_key(Keysym::RETURN)); // commit to clear state
 
     // Alt_R press → switch to hiragana mode
     let result = engine.process_key(&press_key(Keysym::ALT_R));
     assert!(result.consumed);
     assert!(engine.input_mode != InputMode::Alphabet);
 
-    // Type 'a' → should be 'あ' (hiragana mode)
+    // Commit the pending 'A', then type 'a' → should be 'あ' (hiragana mode)
+    engine.process_key(&press_key(Keysym::RETURN));
     engine.process_key(&press('a'));
     assert_eq!(engine.preedit().unwrap().text(), "あ");
 }
