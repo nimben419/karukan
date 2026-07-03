@@ -31,9 +31,9 @@ pub fn build_rules() -> TrieNode {
 
     // C-row (alternative K and CH sounds)
     trie.insert("ca", "か");
-    trie.insert("ci", "し");
+    trie.insert("ci", "き");
     trie.insert("cu", "く");
-    trie.insert("ce", "せ");
+    trie.insert("ce", "け");
     trie.insert("co", "こ");
 
     // Q-row (くぁ行 alternative)
@@ -129,11 +129,14 @@ pub fn build_rules() -> TrieNode {
     trie.insert("tyu", "ちゅ");
     trie.insert("tye", "ちぇ");
     trie.insert("tyo", "ちょ");
-    trie.insert("cya", "ちゃ");
-    trie.insert("cyi", "ちぃ");
-    trie.insert("cyu", "ちゅ");
-    trie.insert("cye", "ちぇ");
-    trie.insert("cyo", "ちょ");
+    trie.insert("cya", "きゃ");
+    trie.insert("cyi", "きぃ");
+    trie.insert("cyu", "きゅ");
+    trie.insert("cye", "きぇ");
+    trie.insert("cyo", "きょ");
+    trie.insert("cna", "きゃ");
+    trie.insert("cnu", "きゅ");
+    trie.insert("cno", "きょ");
     trie.insert("tsa", "つぁ");
     trie.insert("tsi", "つぃ");
     trie.insert("tse", "つぇ");
@@ -434,13 +437,16 @@ mod tests {
     fn test_c_row() {
         let trie = build_rules();
         assert_eq!(trie.search_longest("ca").output.unwrap(), "か");
-        assert_eq!(trie.search_longest("ci").output.unwrap(), "し");
+        assert_eq!(trie.search_longest("ci").output.unwrap(), "き");
         assert_eq!(trie.search_longest("cu").output.unwrap(), "く");
-        assert_eq!(trie.search_longest("ce").output.unwrap(), "せ");
+        assert_eq!(trie.search_longest("ce").output.unwrap(), "け");
         assert_eq!(trie.search_longest("co").output.unwrap(), "こ");
-        assert_eq!(trie.search_longest("cya").output.unwrap(), "ちゃ");
-        assert_eq!(trie.search_longest("cyu").output.unwrap(), "ちゅ");
-        assert_eq!(trie.search_longest("cyo").output.unwrap(), "ちょ");
+        assert_eq!(trie.search_longest("cya").output.unwrap(), "きゃ");
+        assert_eq!(trie.search_longest("cyu").output.unwrap(), "きゅ");
+        assert_eq!(trie.search_longest("cyo").output.unwrap(), "きょ");
+        assert_eq!(trie.search_longest("cna").output.unwrap(), "きゃ");
+        assert_eq!(trie.search_longest("cnu").output.unwrap(), "きゅ");
+        assert_eq!(trie.search_longest("cno").output.unwrap(), "きょ");
     }
 
     #[test]
