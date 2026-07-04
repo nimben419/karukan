@@ -9,9 +9,9 @@ class CandidateWindowController {
     // Visual scale of the panel. Candidate rows use a larger type size
     // than the footers (page indicator / aux line), matching the system
     // Japanese IME's proportions.
-    private static let candidateFontSize: CGFloat = 18
-    private static let footerFontSize: CGFloat = 13
-    private static let minPanelWidth: CGFloat = 160
+    private static let candidateFontSize: CGFloat = 14
+    private static let footerFontSize: CGFloat = 11
+    private static let minPanelWidth: CGFloat = 120
 
     private let panel: NSPanel
     private let stackView: NSStackView
@@ -42,8 +42,8 @@ class CandidateWindowController {
         stackView = NSStackView()
         stackView.orientation = .vertical
         stackView.alignment = .leading
-        stackView.spacing = 4
-        stackView.edgeInsets = NSEdgeInsets(top: 8, left: 12, bottom: 8, right: 12)
+        stackView.spacing = 2
+        stackView.edgeInsets = NSEdgeInsets(top: 5, left: 8, bottom: 5, right: 8)
         stackView.translatesAutoresizingMaskIntoConstraints = false
 
         panel.contentView?.addSubview(stackView)
@@ -168,8 +168,8 @@ class CandidateWindowController {
 
         stackView.layoutSubtreeIfNeeded()
         let contentSize = stackView.fittingSize
-        let panelWidth = max(contentSize.width + 16, Self.minPanelWidth)
-        let panelHeight = contentSize.height + 8
+        let panelWidth = max(contentSize.width + 10, Self.minPanelWidth)
+        let panelHeight = contentSize.height + 4
 
         guard cursorRect != .zero else {
             panel.setFrame(
