@@ -70,6 +70,11 @@ pub struct ConversionSettings {
     pub n_threads: u32,
     /// Enable live conversion at startup (Ctrl+Shift+L still toggles at runtime)
     pub live_conversion: bool,
+    /// Show the predictive candidate window while composing (before Space).
+    /// When false, only the inline preedit (incl. live conversion) updates as
+    /// you type and the candidate popup appears once you press Space. The emoji
+    /// shortcode picker is exempt and always shows its candidates.
+    pub show_composing_candidates: bool,
 }
 
 /// Learning cache settings
@@ -212,9 +217,11 @@ mod tests {
     #[test]
     fn test_default_settings() {
         let settings = Settings::default();
-        assert_eq!(settings.conversion.num_candidates, 9);
+        assert_eq!(settings.conversion.num_candidates, 5);
         assert!(settings.conversion.use_context);
         assert_eq!(settings.conversion.max_context_length, 10);
+        // Production default: no predictive popup until Space.
+        assert!(!settings.conversion.show_composing_candidates);
     }
 
     #[test]

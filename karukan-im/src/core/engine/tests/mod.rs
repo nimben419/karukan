@@ -7,6 +7,7 @@ mod alphabet;
 mod basic;
 mod candidates;
 mod chunks;
+mod composing_candidates;
 mod conversion;
 mod cursor;
 mod emoji;

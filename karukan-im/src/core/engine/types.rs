@@ -88,6 +88,10 @@ pub struct EngineConfig {
     pub strategy: StrategyMode,
     /// Whether live conversion is enabled at engine startup
     pub live_conversion: bool,
+    /// Show the predictive candidate window while composing (before Space).
+    /// When false, the popup stays hidden during composing — only the inline
+    /// preedit updates — and appears on Space. Emoji mode is exempt.
+    pub show_composing_candidates: bool,
 }
 
 impl EngineConfig {
@@ -108,6 +112,7 @@ impl EngineConfig {
             max_latency_ms: settings.conversion.max_latency_ms,
             strategy: settings.conversion.strategy,
             live_conversion: settings.conversion.live_conversion,
+            show_composing_candidates: settings.conversion.show_composing_candidates,
         }
     }
 }
@@ -124,6 +129,9 @@ impl Default for EngineConfig {
             max_latency_ms: 100,
             strategy: StrategyMode::default(),
             live_conversion: false,
+            // Library/test default preserves the historical behavior (popup while
+            // composing). Production overrides this to `false` via default.toml.
+            show_composing_candidates: true,
         }
     }
 }

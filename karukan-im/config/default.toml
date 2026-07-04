@@ -4,8 +4,9 @@
 [conversion]
 # 変換ストラテジー: adaptive（動的切替）, light（軽量モデルのみ）, main（メインモデルのみ）
 strategy = "adaptive"
-# 変換候補数（Space押下時）
-num_candidates = 9
+# 変換候補数（Space押下時）。少なくすると候補ウィンドウが小さくなり、
+# ビームサーチで生成するトークン数も減る。
+num_candidates = 5
 # 周辺テキスト（カーソル左側の確定済みテキスト）を変換時のコンテキストとして使用する
 use_context = true
 # 変換API に渡す周辺テキストの最大文字数
@@ -29,6 +30,10 @@ light_model = "jinen-v1-xsmall-q5"
 n_threads = 4
 # 起動時にライブ変換を有効にする（Ctrl+Shift+L で実行中も切替可能）
 live_conversion = true
+# 入力中（Space押下前）に予測変換候補ウィンドウを表示する。
+# false にすると、入力中は preedit のインライン変換だけが更新され、
+# 候補ウィンドウは Space を押して初めて出る（絵文字ショートカットの候補は対象外で常に表示）。
+show_composing_candidates = false
 # ユーザー辞書: ~/.local/share/karukan-im/user_dicts/ に辞書ファイルを配置（Mozc TSV or KRKN binary）
 
 [learning]

@@ -26,6 +26,17 @@ impl InputMethodEngine {
             return EngineResult::consumed().with_action(EngineAction::UpdatePreedit(preedit));
         }
 
+        // Predictive candidate window: when disabled in config, the popup stays
+        // hidden while composing and only appears on Space. Emoji mode is exempt
+        // — its shortcode picker is an explicit "choose from the list"
+        // interaction, not a passive prediction.
+        let suppress_candidates =
+            !self.config.show_composing_candidates && self.input_mode != InputMode::Emoji;
+        // Live conversion drives the inline preedit (converted kanji shown as you
+        // type); it's off in katakana mode. Same condition guards the live path
+        // below.
+        let live_active = self.live.enabled && self.input_mode != InputMode::Katakana;
+
         // Run auto-suggest via chunked conversion. Normally skipped in alphabet
         // mode (raw latin has no hiragana to convert), but if the buffer still
         // contains kana — e.g. the user typed hiragana, switched to alphabet mode,
@@ -33,9 +44,14 @@ impl InputMethodEngine {
         // stays alive. `chunked_auto_suggest` splits long input into
         // bounded-length chunks so per-keystroke latency stays flat; for input
         // within one chunk this is identical to a whole-buffer call.
+        //
+        // When candidates are suppressed and live conversion isn't producing the
+        // inline preedit, nothing consumes the model output — skip the call
+        // entirely so we don't spend inference on a hidden result.
         let convert = !self.input_buf.text.is_empty()
             && (self.input_mode != InputMode::Alphabet
-                || karukan_engine::contains_kana(&self.input_buf.text));
+                || karukan_engine::contains_kana(&self.input_buf.text))
+            && (!suppress_candidates || live_active);
         let candidates = if convert {
             let reading = self.input_buf.text.clone();
             self.chunked_auto_suggest()
@@ -51,6 +67,9 @@ impl InputMethodEngine {
             // (e.g. `「` → `『`, `【`, ...) for symbol-only inputs where the model is skipped.
             self.live.text.clear();
             let preedit = self.set_composing_state();
+            if suppress_candidates {
+                return Self::composing_preedit_only(preedit);
+            }
             let reading = self.input_buf.text.clone();
             let mut all_candidates = self.lookup_learning_candidates(&reading);
             append_candidates_dedup(&mut all_candidates, self.lookup_dict_candidates(&reading));
@@ -70,9 +89,14 @@ impl InputMethodEngine {
         };
 
         // Live conversion mode: show converted text in preedit
-        if self.live.enabled && self.input_mode != InputMode::Katakana {
+        if live_active {
             self.live.text = candidates[0].clone();
             let preedit = self.set_composing_state();
+            // Inline live conversion stays even when the popup is suppressed —
+            // only the candidate window and aux are held back until Space.
+            if suppress_candidates {
+                return Self::composing_preedit_only(preedit);
+            }
 
             // Same candidate ordering as normal auto-suggest (learning → model →
             // dictionary). Including the model candidates guarantees the list is
@@ -98,6 +122,9 @@ impl InputMethodEngine {
         // Normal auto-suggest: show hiragana preedit + learning/model/dict candidates
         self.live.text.clear();
         let preedit = self.set_composing_state();
+        if suppress_candidates {
+            return Self::composing_preedit_only(preedit);
+        }
         // Learning candidates first (highest priority)
         let mut all_candidates = self.lookup_learning_candidates(&reading);
         // Then model inference candidates
@@ -115,6 +142,19 @@ impl InputMethodEngine {
                 all_candidates,
             )))
             .with_action(EngineAction::UpdateAuxText(aux))
+    }
+
+    /// Composing result that updates only the preedit (inline live conversion
+    /// included) while keeping the predictive candidate popup and its aux line
+    /// hidden. Used when `show_composing_candidates` is disabled so the window
+    /// doesn't appear until the user presses Space. Hiding the aux (rather than
+    /// leaving a stale one parked) also keeps it from bleeding into the
+    /// conversion window that opens on Space.
+    fn composing_preedit_only(preedit: Preedit) -> EngineResult {
+        EngineResult::consumed()
+            .with_action(EngineAction::UpdatePreedit(preedit))
+            .with_action(EngineAction::HideCandidates)
+            .with_action(EngineAction::HideAuxText)
     }
 
     /// Process key in empty state
