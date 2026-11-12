@@ -497,7 +497,8 @@ mod tests {
     #[test]
     fn test_punctuation_then_youon() {
         // 'c' must stay pending after '?' until 'ya' completes 'cya'
-        assert_eq!(conv("a?b?cya"), ("あ？b？ちゃ".to_string(), "".to_string()));
+        // (Dvorak fork: `cya` is mapped to きゃ instead of ちゃ)
+        assert_eq!(conv("a?b?cya"), ("あ？b？きゃ".to_string(), "".to_string()));
     }
 
     /// Type `keys` the way the IME's input buffer does: each evaluation
